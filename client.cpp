@@ -3,14 +3,34 @@
 #include <sys/socket.h> 
 #include <arpa/inet.h> 
 #include <unistd.h> 
-#include <string.h> 
+#include <string.h>
+#include <string>
+#include <sstream>
+#include <iostream>
+
+#include <time.h>
+#include <math.h>
+ 
 #define PORT 8080 
+
+using namespace std;
+
+struct event{
+	clock_t timestamp;
+	char message[100];
+};
+
+/*struct Node{
+	void *content;
+	Node *next;
+};*/
+
+
 
 int main(int argc, char const *argv[]) 
 { 
 	int sock = 0, valread; 
-	struct sockaddr_in serv_addr; 
-	char *hello = "Hello from client"; 
+	struct sockaddr_in serv_addr;
 	char buffer[1024] = {0}; 
 	if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
 	{ 
@@ -32,9 +52,17 @@ int main(int argc, char const *argv[])
 	{ 
 		printf("\nConnection Failed \n"); 
 		return -1; 
-	} 
+	}
+	
+	string message;
+	cout << "Message: ";
+	getline(cin, message);
+	cout << message << endl;
+	message.insert(0, "<header>");
+	const char *hello= message.c_str();
+
 	send(sock , hello , strlen(hello) , 0 ); 
-	printf("Hello message sent\n"); 
+	printf("Message sent\n"); 
 	valread = read( sock , buffer, 1024); 
 	printf("%s\n",buffer ); 
 	return 0; 
