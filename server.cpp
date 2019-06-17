@@ -9,26 +9,74 @@
 #include <string>
 #include <bitset>
 #include <vector>
+#include <time.h>
+#include <math.h>
+ 
+#define PORT 8080 
+
 using namespace std;
 
-string to_ascii(char c){
+int user_count = 0;
+
+struct event{
+	bool packet_type;//True for data packet/ False for control packet
+	int userid; //Local count of users
+	int packet_num; //Number of packets to send or Number of packet sent
+	clock_t timestamp;//Timestamp for message
+	bool checksum_valid;//Checksum correct
+	string message;//Data
+};
+
+vector<event> events;
+
+event decode_msg(string m){
+	event n;
+	time(&n.timestamp);
+	if(m[0] == "1"){//Decode data packet
+		n.packet_type = TRUE;
+		n.userid = user_count;
+		n.packet_num = atoi(m.substr(1,6).c_str());
+		if(checkSum(m.substr(10,8)) == m.substr(6, 4)){n.checksum_valid = TRUE;}
+		else{n.checksum_valid = TRUE;}
+		n.message = char(atoi(m.substr(10,8).c_str()));
+	}
+	if(m[0] == "0"){//Decode control packet
+		n.packet_type = TRUE;
+		n.userid = user_count;
+		n.packet_num = atoi(m.substr(1,6).c_str());
+		if(checkSum(m.substr(10,8)) == m.substr(6, 4)){n.checksum_valid = TRUE;}
+		else{n.checksum_valid = TRUE;}
+		n.message = "";
+	}
+	return n;
+}
+
+string ascii_to(string ascii){//Converts ascii binary string to a regular string
+	string msg = "";
+	for(int i = 0; i < ascii.length(); i + 8){
+		msg.append(char(atoi(ascii.substr(i, 8).c_str())));
+	}
+	return msg;
+}
+
+string to_ascii(char c){//Converts char to ascii binary string
 	int ascii = int(c);
 	string code = bitset<8>(ascii).to_string();
 	return code;
 }
 
-string ascii_string(string in){
+string ascii_string(string in){//Convert a string to an ascii binary string
 	string out = "";
 	for(int i = 0; i < in.length();i++){
-		out.append(in[i]);
+		out.append(to_ascii(in[i]));
 	}
 	return out;
 }
 
-string checkSum(string data){
+string checkSum(string data){//Checksum function
 	substr_a = atoi(code.substr(0, (code.length()/2)-1).c_str());
 	substr_b = atoi(code.substr((code.length()/2), (code.length()/2)).c_str());
-	int c = substr_a&substr_b;
+	int c = substr_a&substr_b;//XOR halves
 	return bitset<8>(c).to_string();
 }
 //Function to create a sequence of chunks to send
@@ -38,12 +86,12 @@ vector<string> header(string msg/*, int buff_size*/){
 	code = ascii_string(msg);
 	//Control message
 	string control = "0";
-	control.append(bitset<6>(code.length()).to_string());
+	control.append(bitset<6>(msg.length()).to_string());
 	control.append(bitset<12>(0).to_string());
 	msgs.push_back(control);
 	for(int i = 0; i < code.length(); i + 8){
 		string id = "1";
-		string data = code.substr(i, 7);
+		string data = code.substr(i, 8);
 		string chk = checkSum(data);
 		id.append(chk);
 		id.append(data);
@@ -52,7 +100,6 @@ vector<string> header(string msg/*, int buff_size*/){
 	return msgs;
 }
 
-#define PORT 8080 
 int main(int argc, char const *argv[]) 
 { 
     int server_fd, new_socket, valread; 
@@ -85,6 +132,9 @@ int main(int argc, char const *argv[])
         perror("bind failed"); 
         exit(EXIT_FAILURE); 
     }
+	
+    string mssg = "";
+	
     while(true){
 	    if (listen(server_fd, 3) < 0) 
 	    { 
@@ -98,16 +148,22 @@ int main(int argc, char const *argv[])
 		exit(EXIT_FAILURE); 
 	    } 
 	    char buffer[1024] = {0};
-	    valread = read( new_socket , buffer, 1024); 
-	    printf("%s\n",buffer );
+	    valread = read( new_socket , buffer, 1024);
+	    string current = c_str(buffer);
+	    event c = decode_msg(current);
+	    events.push_back(c);
+	    mssg.append(c.message);
+	    
+	    
 
 /*
 	string message = "Message Received"; 
 	message.insert(0, "<header>");
 	const char *hello= message.c_str();
-*/
+
 	    send(new_socket , hello , strlen(hello) , 0 ); 
-	    printf("Hello message sent\n");
+	    printf("Hello message sent\n");*/
     }
+    cout << mssg << "received" << endl;
     return 0; 
 }
