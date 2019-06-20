@@ -7,6 +7,9 @@
 #include <string>
 #include <sstream>
 #include <iostream>
+#include <iomanip>
+#include <vector>
+#include <bitset>
 
 #include <time.h>
 #include <math.h>
@@ -15,92 +18,76 @@
 
 using namespace std;
 
-int user_count = 0;
-
 struct event{
 	bool packet_type;//True for data packet/ False for control packet
-	int userid; //Local count of users
+	int userid = 1; //Local count of users
 	int packet_num; //Number of packets to send or Number of packet sent
-	clock_t timestamp;//Timestamp for message
-	bool checksum_valid;//Checksum correct
+	time_t timestamp;//Timestamp for message
+	int check_sum;//Checksum correct
 	string message;//Data
 };
 
-vector<event> events;
+int checkSum(string data, int check_num, int position, int len){//Checksum function
+	string data_sub = data.substr(position,len);//Segment preset chunk of data for checksum
+	int data_num = 0;
+	for(int i = 0; i < data_sub.length(); i++){
+		data_num += int(data_sub[i]);
+	}
+	int c = check_num&data_num;//XOR
+	return c;//Checksum
+}
 
-event decode_msg(string m){
+string zero_pad(int num, int len)
+{
+    ostringstream ss;
+    ss << setw( len ) << setfill( '0' ) << num;
+    return ss.str();
+}
+
+vector<string> packets(string message, int buffer_sz, int head_sz, int checks_val, int checks_pos, int chk_ln){//Entire message, buffer size, header length, checksum value, checksum alg position, checksum alg length
+	vector<string> pckts;
+	int chunk_sz = buffer_sz - head_sz;
+	for(int i = 0; i < message.length()/chunk_sz; i++){//Header creation + data chunk append
+		string data_packet = "1";
+		string packet_num = zero_pad(i, 2);//Packet number
+		string check_sum = zero_pad(checkSum(message.substr(chunk_sz*i, chunk_sz), checks_val, checks_pos, chk_ln), 4);//Checksum
+		string chunk = message.substr(chunk_sz*i, chunk_sz);//Data
+		string packet = data_packet + packet_num + check_sum + chunk;//Header + data
+		pckts.push_back(packet);
+	}
+	return pckts;
+}
+
+event decode_packet(string pckt, int hdr_len){
 	event n;
-	time(&n.timestamp);
-	if(m[0] == "1"){//Decode data packet
-		n.packet_type = TRUE;
-		n.userid = user_count;
-		n.packet_num = atoi(m.substr(1,6).c_str());
-		if(checkSum(m.substr(10,8)) == m.substr(6, 4)){n.checksum_valid = TRUE;}
-		else{n.checksum_valid = TRUE;}
-		n.message = char(atoi(m.substr(10,8).c_str()));
+	string header = pckt.substr(0, hdr_len);
+	string data = pckt.substr(hdr_len, pckt.length()-hdr_len);
+	if(header[0] = '1'){//Data packet
+		n.packet_type = true;
+		n.packet_num = atoi(header.substr(1,2).c_str());
+		n.check_sum = atoi(header.substr(1,4).c_str());
 	}
-	if(m[0] == "0"){//Decode control packet
-		n.packet_type = TRUE;
-		n.userid = user_count;
-		n.packet_num = atoi(m.substr(1,6).c_str());
-		if(checkSum(m.substr(10,8)) == m.substr(6, 4)){n.checksum_valid = TRUE;}
-		else{n.checksum_valid = TRUE;}
-		n.message = "";
+	if(header[0] = '0'){//Control packet
+		n.packet_type = false;
+		n.packet_num = 0;
+		n.check_sum = atoi(header.substr(1,4).c_str());
 	}
+	//time(n.timestamp);
+	n.message = data;
 	return n;
 }
-
-string ascii_to(string ascii){//Converts ascii binary string to a regular string
-	string msg = "";
-	for(int i = 0; i < ascii.length(); i + 8){
-		msg.append(char(atoi(ascii.substr(i, 8).c_str())));
-	}
-	return msg;
-}
-
-string to_ascii(char c){//Converts char to ascii binary string
-	int ascii = int(c);
-	string code = bitset<8>(ascii).to_string();
-	return code;
-}
-
-string ascii_string(string in){//Convert a string to an ascii binary string
-	string out = "";
-	for(int i = 0; i < in.length();i++){
-		out.append(to_ascii(in[i]));
-	}
-	return out;
-}
-
-string checkSum(string data){//Checksum function
-	substr_a = atoi(code.substr(0, (code.length()/2)-1).c_str());
-	substr_b = atoi(code.substr((code.length()/2), (code.length()/2)).c_str());
-	int c = substr_a&substr_b;//XOR halves
-	return bitset<8>(c).to_string();
-}
-//Function to create a sequence of chunks to send
-vector<string> header(string msg/*, int buff_size*/){
-	vector<string> msgs;
-	//Data portion
-	code = ascii_string(msg);
-	//Control message
-	string control = "0";
-	control.append(bitset<6>(msg.length()).to_string());
-	control.append(bitset<12>(0).to_string());
-	msgs.push_back(control);
-	for(int i = 0; i < code.length(); i + 8){
-		string id = "1";
-		string data = code.substr(i, 8);
-		string chk = checkSum(data);
-		id.append(chk);
-		id.append(data);
-		msgs.push_back(id);	
-	}
-	return msgs;
-}
-
 int main(int argc, char const *argv[]) 
 { 
+	int user_count = 0;
+	int my_buff_sz = 20;
+	vector<event> events;
+
+	int header_len = 7;//Header size
+
+	int checksum_val = 25;//Arbitrary preset value
+	int check_pos = 0;
+	int length_ = to_string(checksum_val).length();
+
 	int sock = 0, valread; 
 	struct sockaddr_in serv_addr;
 	char buffer[1024] = {0}; 
@@ -127,21 +114,35 @@ int main(int argc, char const *argv[])
 	}
 	
 	string message;
-	cout << "Message: ";
+	cout << "Input message: ";
 	getline(cin, message);
+	cout << "MESSAGE TO BE SENT : [" << message << "]" << endl;
 	
-	vector<string> packets = header(message);
-	for(int i = 0; i < packets.length(); i++){
-		const char *ms = packets[i].c_str();
-		send(sock, ms, strlen(ms), 0);
-	}/*
-	cout << message << endl;
-	message.insert(0, "<header>");
-	const char *hello= message.c_str();
+	string control_packet = "000";
+	control_packet.append(zero_pad(my_buff_sz, 4));
+	const char *cntrl = control_packet.c_str();
+	send(sock, cntrl, strlen(cntrl), 0);
+	cout << "Control packet sent with buffer size " << my_buff_sz << endl;
+	//Client sends control packet
 
-	send(sock , hello , strlen(hello) , 0 ); 
-	printf("Message sent\n"); */
-	valread = read( sock , buffer, 1024); 
-	printf("%s\n",buffer ); 
+	valread = read(sock, buffer, 1024);
+	printf("%s\n", buffer);
+	string server_cntrl = string(buffer);
+	//Server sends control packet to server
+	event serv_cntrl = decode_packet(server_cntrl, header_len);
+	//Client decodes control message
+	int server_buffer_len = serv_cntrl.check_sum;
+	cout << "Server buffer length: " << server_buffer_len << endl;
+
+	cout << "Sending data packets" << endl;
+	vector<string> p = packets(message, my_buff_sz, header_len, checksum_val, check_pos, length_);
+
+	for(int i = 0; i < p.size(); i++){
+		cout << p[i] << endl;
+		const char *m = p[i].c_str();
+		send(sock, m, strlen(m), 0);
+	}//Send Data packets
+
+	
 	return 0; 
 } 
