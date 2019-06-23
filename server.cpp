@@ -59,19 +59,19 @@ vector<string> packets(string message, int buffer_sz, int head_sz, int checks_va
 	return pckts;
 }
 
-event decode_packet(string pckt, int hdr_len, int checks_val, int checks_pos, int chk_ln){
+event decode_packet(string pckt, int hdr_len){
 	event n;
 	string header = pckt.substr(0, hdr_len);
 	string data = pckt.substr(hdr_len, pckt.length()-hdr_len);
 	if(header[0] = '1'){//Data packet
 		n.packet_type = true;
 		n.packet_num = atoi(header.substr(1,2).c_str());
-		n.check_sum = atoi(header.substr(1,4).c_str());
+		n.check_sum = atoi(header.substr(3,4).c_str());
 	}
 	if(header[0] = '0'){//Control packet
 		n.packet_type = false;
 		n.packet_num = 0;
-		n.check_sum = atoi(header.substr(1,4).c_str());
+		n.check_sum = atoi(header.substr(3,4).c_str());
 	}
 	//time(n.timestamp);
 	n.message = data;
@@ -119,13 +119,14 @@ int main(int argc, char const *argv[])
         perror("bind failed"); 
         exit(EXIT_FAILURE); 
     }
-	
-    while(true){
+	string full_msg;
+    
 	    if (listen(server_fd, 3) < 0) 
 	    { 
 			perror("listen"); 
 			exit(EXIT_FAILURE); 
 	    } 
+	while(true){
 	    if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen))<0) 
 	    { 
 			perror("accept"); 
@@ -139,16 +140,24 @@ int main(int argc, char const *argv[])
 
 	    if(current[0] == '0'){
 			client_buffer = atoi(current.substr(1, current.length()-1).c_str());
+			string control_packet = "000";
+			control_packet.append(zero_pad(my_buff_sz, 4));
+			const char *cntrl = control_packet.c_str();
+			send(new_socket, cntrl, strlen(cntrl), 0);
+			cout << "Control packet sent with buffer size " << my_buff_sz << endl;
 		}
 		if(current[0] == '1'){
-
+			event c = decode_packet(current, header_len);
+			cout << "Packet Message: " << c.message;
+			full_msg.append(c.message);
+			string cnfm = "pkt_rcv";
+			const char *confirm = cnfm.c_str();
+			cout << "pkt_rcv" << endl;
+			send(new_socket , confirm , strlen(confirm) , 0 );
 		}
-
-	string message = "Server >> Packet Received"; 
-	const char *hello= message.c_str();
-
-	    send(new_socket , hello , strlen(hello) , 0 ); 
-	    printf("Server message sent\n");
     }
+	const char *complete = full_msg.c_str();
+	cout << "Client said: " << full_msg << endl;
+	send(new_socket , complete , strlen(complete) , 0 );
     return 0; 
 }
