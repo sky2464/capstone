@@ -104,15 +104,24 @@ cout << "Control packet received: " << serv_cntrl << endl;
 	//Prepare data packets and send them
 	vector<string> data_pkts = data_packets(message, serv_buffer, header_len);
 	for(int i = 0; i < data_pkts.size(); i++){
-		const char *temp = data_pkts[i].c_str();
+		string t = data_pkts[i];
+//t[5] = '2'; //Modify checksum to cause error
+//t[1] = '2'; //Modify packet number to cause error
+		const char *temp = t.c_str();
 		send(sock, temp, strlen(temp), 0);
-cout << "Data packet sent : " << data_pkts[i] << endl;
+cout << "Data packet sent : " << t << endl;
 		//Busy waiting for server confirmation
 		while(true){
 			char buff[1024] = {0};
 			valread = read(sock, buff, 1024);
 			if(string(buff) == "cnfm"){
 				break;
+			}
+			if(string(buff) == "s/a"){
+t = data_pkts[i];//Correct packet
+temp = t.c_str();//
+				send(sock, temp, strlen(temp),0);
+cout << "Resent packet : " << temp << endl;
 			}
 		}
 	}

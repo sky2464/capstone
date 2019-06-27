@@ -91,6 +91,7 @@ int main(int argc, char const *argv[])
 		perror("listen"); 
 		exit(EXIT_FAILURE); 
 	} 
+while(true){
 	if ((new_socket = accept(server_fd, (struct sockaddr *)&address, 
 					(socklen_t*)&addrlen))<0) 
 	{ 
@@ -124,7 +125,17 @@ cout << "Control packet sent : " << cntrl << endl;
 cout << "Data packet received: " << string(buffer1) << endl;
 		string chunk = string(buffer1).substr(7, buffer_size - header_len);
 		pkt_data.push_back(chunk);
-		//Insert error checks here (packet number and checksum)
+		//Error checks here (packet number and checksum)
+		if(string(buffer1).substr(3,4) != check_sum(chunk) || atoi(string(buffer1).substr(1,2).c_str()) != i){
+			string s_a = "s/a";
+			send(new_socket, s_a.c_str(), strlen(s_a.c_str()), 0);
+			pkt_data.pop_back();
+			buffer1[1024] = {0}; 
+			valread = read(new_socket, buffer1, 1024);
+cout << "Data packet resent: " << string(buffer1) << endl;
+			chunk = string(buffer1).substr(7, buffer_size - header_len);
+			pkt_data.push_back(chunk);
+		}
 		string cnfm = "cnfm";
 		send(new_socket, cnfm.c_str(), strlen(cnfm.c_str()), 0);//Send packet confirmation
 	}
@@ -134,6 +145,7 @@ cout << "Data packet received: " << string(buffer1) << endl;
 		cout << pkt_data[i];
 	}
 	cout << endl;
+}
 
 	// valread = read( new_socket , buffer, 1024); 
 	// printf("%s\n",buffer ); 
