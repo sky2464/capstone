@@ -17,42 +17,13 @@
 
 using namespace std;
 
-string zero_pad(int num, int len){//Pad a number with 0s
-    ostringstream ss;
-    ss << setw( len ) << setfill( '0' ) << num;
-    return ss.str();
-}
+string zero_pad(int num, int len);
 
-string check_sum(string data){
-	int check_val = 256;//Arbitrary assigned value
-	int data_val = 0;
-	for(int i = 0; i < data.length(); i++){
-		data_val += int(data[i]);
-	}
-	//int xor_ = check_val&data_val;
-	return zero_pad(data_val, 4);//zero_pad(xor_, 4);
-}
+string check_sum(string data);
 
-vector<string> data_packets(string data, int buffer_sz, int header_len){
-	vector<string> pkt_list;
-	int data_chunk = buffer_sz - header_len;
-	for(int i = 0; i < (data.length()/data_chunk) + 1; i++){
-		string chunk = data.substr(data_chunk*i, data_chunk);
-		string pkt_num = zero_pad(i, 2);
-		string chk_sum = check_sum(chunk);
-		string pkt = "1" + pkt_num + chk_sum + chunk;
-		pkt_list.push_back(pkt);
-	}
-	return pkt_list;
-}
+vector<string> data_packets(string data, int buffer_sz, int header_len);
 
-string control_pkt(string data, int buffer_sz){
-	string p = "0";
-	string len = zero_pad(data.length(), 2);//max 99 characters message size for two character packet area
-	string sz = zero_pad(buffer_sz, 4);//Send buffer size to destination
-	p = p + len + sz;
-	return p;
-}
+string control_pkt(string data, int buffer_sz);
 
 int main(int argc, char const *argv[]) 
 { 
@@ -132,3 +103,36 @@ cout << "Resent packet : " << temp << endl;
 	// printf("%s\n",buffer ); 
 	return 0; 
 } 
+string zero_pad(int num, int len){//Pad a number with 0s
+    ostringstream ss;
+    ss << setw( len ) << setfill( '0' ) << num;
+    return ss.str();
+}
+string check_sum(string data){
+	int check_val = 256;//Arbitrary assigned value
+	int data_val = 0;
+	for(int i = 0; i < data.length(); i++){
+		data_val += int(data[i]);
+	}
+	//int xor_ = check_val&data_val;
+	return zero_pad(data_val, 4);//zero_pad(xor_, 4);
+}
+vector<string> data_packets(string data, int buffer_sz, int header_len){
+	vector<string> pkt_list;
+	int data_chunk = buffer_sz - header_len;
+	for(int i = 0; i < (data.length()/data_chunk) + 1; i++){
+		string chunk = data.substr(data_chunk*i, data_chunk);
+		string pkt_num = zero_pad(i, 2);
+		string chk_sum = check_sum(chunk);
+		string pkt = "1" + pkt_num + chk_sum + chunk;
+		pkt_list.push_back(pkt);
+	}
+	return pkt_list;
+}
+string control_pkt(string data, int buffer_sz){
+	string p = "0";
+	string len = zero_pad(data.length(), 2);//max 99 characters message size for two character packet area
+	string sz = zero_pad(buffer_sz, 4);//Send buffer size to destination
+	p = p + len + sz;
+	return p;
+}
