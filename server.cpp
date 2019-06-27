@@ -36,6 +36,11 @@ int main(int argc, char const *argv[])
 	int addrlen = sizeof(address); 
 	
 	// Creating socket file descriptor 
+	// socket descriptor, an integer (like a file-handle)
+	//AF_INET (IPv4 protocol)
+	//SOCK_STREAM is communication type
+	//Protocol value for Internet Protocol(IP), which is 0. This is the same number which appears on protocol field in the IP header of a packet
+
 	if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) 
 	{ 
 		perror("socket failed"); 
@@ -44,10 +49,10 @@ int main(int argc, char const *argv[])
 	
 	// Forcefully attaching socket to the port 8080 
 	//if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) 
-	{ 
+	//{ 
 		//perror("setsockopt"); 
 		//exit(EXIT_FAILURE); 
-	} 
+	//} 
 	address.sin_family = AF_INET; 
 	address.sin_addr.s_addr = INADDR_ANY; 
 	address.sin_port = htons( PORT ); 
