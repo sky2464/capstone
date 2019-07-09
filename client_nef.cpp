@@ -12,28 +12,13 @@
 #include <bitset>
 #include <time.h>
 #include <math.h>
+#include "jana.h"
 
 #define PORT 8080 
 
 using namespace std;
 
-string zero_pad(int num, int len){//Pad a number with 0s
-    ostringstream ss;
-    ss << setw( len ) << setfill( '0' ) << num;
-    return ss.str();
-}
-
-string check_sum(string data){
-	int check_val = 256;//Arbitrary assigned value
-	int data_val = 0;
-	for(int i = 0; i < data.length(); i++){
-		data_val += int(data[i]);
-	}
-	//int xor_ = check_val&data_val;
-	return zero_pad(data_val, 4);//zero_pad(xor_, 4);
-}
-
-int hackerman_intf(){
+int clt_dos_interface(){
     int select;
     cout << "[HACKERMAN INTERFACE]" << endl;
     cout << "| 1 << Control DOS  |" << endl;//Send incorrect value for size of message in control packet
@@ -43,33 +28,9 @@ int hackerman_intf(){
 	return select; 
 }
 
-vector<string> data_packets(string data, int buffer_sz, int header_len){
-cout << "Creating packets..." << endl;
-
-	vector<string> pkt_list;
-	int data_chunk = buffer_sz - header_len;
-	for(int i = 0; i < (data.length()/data_chunk) + 1; i++){
-		string chunk = data.substr(data_chunk*i, data_chunk);
-		string pkt_num = zero_pad(i, 2);
-		string chk_sum = check_sum(chunk);
-		string pkt = "1" + pkt_num + chk_sum + chunk;
-		pkt_list.push_back(pkt);
-cout << "Pkt[" << i << "] " << pkt << endl;
-	}
-	return pkt_list;
-}
-
-string control_pkt(string data, int buffer_sz){
-	string p = "0";
-	string len = zero_pad(data.length(), 2);//max 99 characters message size for two character packet area
-	string sz = zero_pad(buffer_sz, 4);//Send buffer size to destination
-	p = p + len + sz;
-	return p;
-}
-
 int main(int argc, char const *argv[]) 
 { 
-	int dos = hackerman_intf();
+	int dos = 5;//clt_dos_interface();
 
 	int sock = 0, valread; 
 	struct sockaddr_in serv_addr; 
@@ -106,46 +67,85 @@ int main(int argc, char const *argv[])
 	cin >> tempy;
 	getline(cin, message);
 	message.insert(0, tempy);
+
 	//Send client control packet
-	string cntrl = control_pkt(message, buffer_size);
+	string cntrl = clt_control_pkt(message, buffer_size);
 	if(dos == 1){cntrl[1] = '5';}//Nefarious option 1, give incorrect message size
-	const char *control = cntrl.c_str();
-	send(sock, control, strlen(control), 0);
+	send_msg(sock, cntrl);
 cout << "Control packet sent : " << cntrl << endl;
+
 	//Receive server control packet
-	char buffer[1024] = {0}; 
-	valread = read(sock, buffer, 1024);
-	//Decode server control packet
-	string serv_cntrl = string(buffer);
+	string serv_cntrl = timed_listen(sock);
+	for(int i = 0; i < 2; i++){
+		if(serv_cntrl == "null"){
+			send_msg(sock, cntrl);
+			serv_cntrl = timed_listen(sock);
+			if(i = 1){return 0;}
+		}
+		else{
+			break;
+		}
+	}//If control packet is not sent from server, try again twice
 cout << "Control packet received: " << serv_cntrl << endl;
-	//int expects = (atoi(serv_cntrl.substr(1, 2))/(buffer_size-header_len))+1;
-	int serv_buffer = atoi(serv_cntrl.substr(3, 4).c_str());
+
+	int serv_buffer = chk_num(serv_cntrl);
+cout << "Server buffer length: " << serv_buffer << endl;
+
 	//Prepare data packets and send them
 	vector<string> data_pkts = data_packets(message, serv_buffer, header_len);
 cout << "<Packets created>" << endl;
-	vector<int> pkt_sent_cnt;
-	pkt_sent_cnt.reserve(data_pkts.size());
-	while(true){
-		int i = atoi(string(buffer).substr(1,2).c_str());
-		if(i == data_pkts.size()){break;}//If full message has already been sent, end connection
-cout << "Server request packet " << i;
-		if(dos == 2){i = 1;}//Nefarious option 2, client only sends the first packet no matter what is requested
-		string t = data_pkts[i];
-cout << " : " << t << endl;
-		pkt_sent_cnt[i] += 1;
-//t[5] = '2'; //Modify checksum to cause error
-//t[1] = '2'; //Modify packet number to cause error
-		if(pkt_sent_cnt[i] > 2){break;}//If server requests a packet more than twice, end connection
-		const char *temp = t.c_str();
-		send(sock, temp, strlen(temp), 0);
-cout << "Data packet sent : " << t << endl;
-		buffer[1024] = {0};
-		valread = read(sock, buffer, 1024);//Read request packet
-	}
 
-	// send(sock , hello , strlen(hello) , 0 ); 
-	// printf("Hello message sent\n"); 
-	// valread = read( sock , buffer, 1024); 
-	// printf("%s\n",buffer ); 
+	vector<int> pkt_sent_cnt;
+	pkt_sent_cnt.reserve(data_pkts.size()+1);
+	pkt_sent_cnt = {0};
+cout << "Client to send " << data_pkts.size() << " packets" << endl;
+
+	string mssg = serv_cntrl;
+	while(true){
+		if(!client_respond_to_request(sock, mssg, data_pkts)){//Checks if a valid packet request
+			for(int i = 0; i < 2; i++){
+				send_msg(sock, zero_pad(0, header_len+serv_buffer));//Send error message back
+				mssg = timed_listen(sock);
+				if(mssg == "null" || !client_respond_to_request(sock, mssg, data_pkts)){//Try again
+	cout << "Tried getting control packet again" << endl;
+					if(i = 1){
+						cout << "Tried to receive twice" << endl;
+						return 0;
+					}
+				}
+				else{
+					break;
+				}
+			}//If next control packet is not sent from server, try again twice
+		}
+cout << "Server request packet " << data_num(mssg) << endl;
+cout << "Data packet sent : " << data_pkts[data_num(mssg)] << endl;
+cout << "Sent before [" << pkt_sent_cnt[data_num(mssg)] << "] times" << endl;
+		if(data_num(mssg) == data_pkts.size()-1){
+			cout << "All packets sent" << endl;
+			break;
+		}//If full message has already been sent, end connection
+		
+		pkt_sent_cnt[data_num(mssg)] += 1;
+		if(pkt_sent_cnt[data_num(mssg)] > 2){
+			cout << "Server requested too many times" << endl;
+			break;
+		}//If server requests a packet more than twice, end connection
+
+		mssg = timed_listen(sock);//Accept next control packet data request
+		for(int i = 0; i < 2; i++){
+			if(mssg == "null"){
+				send_msg(sock, zero_pad(0, header_len+serv_buffer));//Send error message back
+				mssg = timed_listen(sock);
+				if(i = 1){
+					cout << "Tried to receive twice" << endl;
+					return 0;
+				}
+			}
+			else{
+				break;
+			}
+		}//If next control packet is not sent from server, try again twice
+	}
 	return 0; 
 } 
