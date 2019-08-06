@@ -1,9 +1,9 @@
-#include <unistd.h> 
-#include <stdio.h> 
-#include <sys/socket.h> 
-#include <stdlib.h> 
-#include <netinet/in.h> 
-#include <string.h> 
+#include <unistd.h>
+#include <stdio.h>
+#include <sys/socket.h>
+#include <stdlib.h>
+#include <netinet/in.h>
+#include <string.h>
 #include <string>
 #include <sstream>
 #include <iostream>
@@ -15,116 +15,164 @@
 
 using namespace std;
 
-void send_msg(int skt, string msg){
-	const char * m = msg.c_str();
+void send_msg(int skt, string msg)
+{
+	const char *m = msg.c_str();
 	send(skt, m, strlen(m), 0);
 }
 
-string read_msg(int skt){
+string read_msg(int skt)
+{
 	char buffer[1024] = {0};
 	int valread = read(skt, buffer, 1024);
 	return string(buffer);
 }
 
-string zero_pad(int num, int len){//Pad a number with 0s
-    ostringstream ss;
-    ss << setw( len ) << setfill( '0' ) << num;
-    return ss.str();
+string zero_pad(int num, int len)
+{ //Pad a number with 0s
+	ostringstream ss;
+	ss << setw(len) << setfill('0') << num;
+	return ss.str();
 }
 
-string check_sum(string data){
-	int check_val = 256;//Arbitrary assigned value
+string check_sum(string data)
+{
+	int check_val = 256; //Arbitrary assigned value
 	int data_val = 0;
-	for(int i = 0; i < data.length(); i++){
+	for (int i = 0; i < data.length(); i++)
+	{
 		data_val += int(data[i]);
 	}
 	//int xor_ = check_val&data_val;
-	return zero_pad(data_val, 4);//zero_pad(xor_, 4);
+	return zero_pad(data_val, 4); //zero_pad(xor_, 4);
 }
 
-int data_num(string msg){
-    return atoi(msg.substr(1,2).c_str());
+int data_num(string msg)
+{
+	return atoi(msg.substr(1, 2).c_str());
 }
 
-int chk_num(string msg){
-    return atoi(msg.substr(3,4).c_str());
+int chk_num(string msg)
+{
+	return atoi(msg.substr(3, 4).c_str());
 }
 
-string data_msg(string msg, int hdr_ln){
+string data_msg(string msg, int hdr_ln)
+{
 	return msg.substr(hdr_ln, msg.length() - hdr_ln);
 }
 
-string timed_listen(int sck){
-        time_t ts;
-        time(&ts);
-        char bfr[1024] = {0};
-        string msg = "null";
-        double sec;
-        while(string(bfr).length() == 0 && sec < 11){
-                time_t ct = time(NULL);
-                sec = difftime(ct, ts);
-                bfr[1024] = {0};
-                int valread = read(sck, bfr, 1024);
-        }
-        if(sec < 11){msg = string(bfr);}
-        return msg;
+string timed_listen(int sck)
+{
+	time_t ts;
+	time(&ts);
+	char bfr[1024] = {0};
+	string msg = "null";
+	double sec;
+	while (string(bfr).length() == 0 && sec < 11)
+	{
+		time_t ct = time(NULL);
+		sec = difftime(ct, ts);
+		bfr[1024] = {0};
+		int valread = read(sck, bfr, 1024);
+	}
+	if (sec < 11)
+	{
+		msg = string(bfr);
+	}
+	return msg;
 }
 
-string clt_data_pkt(string f_msg, int limit, int start_byte){
+string clt_data_pkt(string f_msg, int limit, int start_byte)
+{
 	string data = f_msg.substr(start_byte, limit);
-	string pkt = "1";//Data indicator
-	string strt = zero_pad(start_byte, 2);//Start byte
+	string pkt = "1";					   //Data indicator
+	string strt = zero_pad(start_byte, 2); //Start byte
 	string chk = check_sum(data);
 	pkt = pkt + strt + chk + data;
 	return pkt;
 }
 
-string serv_control_pkt(string data, int strt, int buffer_sz){
+string serv_control_pkt(string data, int strt, int buffer_sz)
+{
 	string p = "0";
-	string len = zero_pad(strt, 2);//start byte for server to request
-	string sz = zero_pad(buffer_sz, 4);//Send buffer size to destination
+	string len = zero_pad(strt, 2);		//start byte for server to request
+	string sz = zero_pad(buffer_sz, 4); //Send buffer size to destination
 	p = p + len + sz;
 	return p;
 }
 
-string clt_control_pkt(string data, int buffer_sz){
+string clt_control_pkt(string data, int buffer_sz)
+{
 	string p = "0";
-	string len = zero_pad(data.length(), 2);//max 99 characters message size for two character packet area
-	string sz = zero_pad(buffer_sz, 4);//Send buffer size to destination
+	string len = zero_pad(data.length(), 2); //max 99 characters message size for two character packet area
+	string sz = zero_pad(buffer_sz, 4);		 //Send buffer size to destination
 	p = p + len + sz;
 	return p;
 }
 
-void server_request_client(int skt, int pkt_num, int buffer_sz){
+void server_request_client(int skt, int pkt_num, int buffer_sz)
+{
 	string msg = serv_control_pkt("", pkt_num, buffer_sz);
 	send_msg(skt, msg);
 }
 
-bool client_respond_to_request(int skt, string serv_req, vector<string> pkt_lst){
+bool client_respond_to_request(int skt, string serv_req, vector<string> pkt_lst)
+{
 	int i = data_num(serv_req);
-	if(i < pkt_lst.size()){
+	if (i < pkt_lst.size())
+	{
 		send_msg(skt, pkt_lst[i]);
 		return true;
 	}
-	else{
+	else
+	{
 		return false;
 	}
 }
 
-bool check_pkt(string msg, int crnt, int hdrlen){
-	const char * chk_sum = check_sum(data_msg(msg, hdrlen)).c_str();
-	if(atoi(chk_sum) == chk_num(msg) && data_num(msg) == crnt && data_msg(msg, 7) != "null"){
+bool check_pkt(string msg, int crnt, int hdrlen)
+{
+	const char *chk_sum = check_sum(data_msg(msg, hdrlen)).c_str();
+	if (atoi(chk_sum) == chk_num(msg) && data_num(msg) == crnt && data_msg(msg, 7) != "null")
+	{
 		return true;
 	}
-	else{
+	else
+	{
 		return false;
 	}
 }
 
-void store_disk(string & msg, string & disk, int & fp, int mem){
-	if(msg.length() >= mem){
+void store_disk(string &msg, string &disk, int &fp, int mem)
+{
+	if (msg.length() >= mem)
+	{
 		fp += msg.length();
 		disk = disk.append(msg);
 		msg = "";
 	}
+}
+
+void encryption(char str[100])
+{
+	int i, x;
+
+	for (i = 0; (i < 100 && str[i] != '\0'); i++)
+		str[i] = str[i] + 7; //the key for encryption is 7 that is added to ASCII value
+
+	cout << "\nEncrypted string: " << str << endl;
+}
+
+void encryption(char str[100])
+
+{
+
+	int i, x;
+
+	for (i = 0; (i < 100 && str[i] != '\0'); i++)
+
+		str[i] = str[i] - 7; //the key for Decryption is 7 that is added to ASCII value
+
+	cout << "\nDecrypted string: " << str << endl;
 }
