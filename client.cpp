@@ -12,50 +12,53 @@
 #include <bitset>
 #include <time.h>
 #include <math.h>
+#include <fstream>
+#include "jana-m.h"
 
-#define PORT 8080 
+#define PORT 8888
 
 using namespace std;
 
-string zero_pad(int num, int len){//Pad a number with 0s
-    ostringstream ss;
-    ss << setw( len ) << setfill( '0' ) << num;
-    return ss.str();
-}
+// string dec_to_hex(int i, int len){
 
-string check_sum(string data){
-	int check_val = 256;//Arbitrary assigned value
-	int data_val = 0;
-	for(int i = 0; i < data.length(); i++){
-		data_val += int(data[i]);
+// }
+
+string message_to_be_sent(string filename){
+	ifstream input;
+	input.open(filename);
+	string m;
+	while(!input.eof()){
+		string temp;
+		input >> temp;
+		m.append(temp);
 	}
-	//int xor_ = check_val&data_val;
-	return zero_pad(data_val, 4);//zero_pad(xor_, 4);
+	return m;
 }
 
-vector<string> data_packets(string data, int buffer_sz, int header_len){
-	vector<string> pkt_list;
-	int data_chunk = buffer_sz - header_len;
-	for(int i = 0; i < (data.length()/data_chunk) + 1; i++){
-		string chunk = data.substr(data_chunk*i, data_chunk);
-		string pkt_num = zero_pad(i, 2);
-		string chk_sum = check_sum(chunk);
-		string pkt = "1" + pkt_num + chk_sum + chunk;
-		pkt_list.push_back(pkt);
+void handshake(int sock, string in, int limit, int err, int key){
+	if(err < 2){	
+		//Send control packet to indicate client is ready
+		string clt_cntrl = clt_control_pkt(in, key);
+		send_msg(sock, clt_cntrl);
+		//Receive the server's data request
+		string srv = timed_listen(sock);
+	cout << "RECEIVED: " << srv << endl;
+		int srt = data_num(srv);
+		if(srt > in.length() || srv == "null"){
+			handshake(sock, in, limit, err+1, key);
+		}
+		//Send the requested data
+		string data = clt_data_pkt(in, limit, srt, key);
+		send_msg(sock, data);
+	cout << "SENDING: " << data << endl;
 	}
-	return pkt_list;
-}
-
-string control_pkt(string data, int buffer_sz){
-	string p = "0";
-	string len = zero_pad(data.length(), 2);//max 99 characters message size for two character packet area
-	string sz = zero_pad(buffer_sz, 4);//Send buffer size to destination
-	p = p + len + sz;
-	return p;
 }
 
 int main(int argc, char const *argv[]) 
 { 
+	int dos = 5;//clt_dos_interface();
+	int buffer_s = 4;
+
 	int sock = 0, valread; 
 	struct sockaddr_in serv_addr; 
 	if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
@@ -79,56 +82,25 @@ int main(int argc, char const *argv[])
 		printf("\nConnection Failed \n"); 
 		return -1; 
 	}
-	
-	//Client parameters
-	int header_len = 7;
-	int buffer_size = 10;
+	//Connecting message
+cout << timed_listen(sock) << endl;
 
-	//Take user input message
-	string message;
-	cout << ">" ;
-	getline(cin, message);
-	//Send client control packet
-	string cntrl = control_pkt(message, buffer_size);
-	const char *control = cntrl.c_str();
-	send(sock, control, strlen(control), 0);
-cout << "Control packet sent : " << cntrl << endl;
-	//Receive server control packet
-	char buffer[1024] = {0}; 
-	valread = read(sock, buffer, 1024);
-	//Decode server control packet
-	string serv_cntrl = string(buffer);
-cout << "Control packet received: " << serv_cntrl << endl;
-	//int expects = (atoi(serv_cntrl.substr(1, 2))/(buffer_size-header_len))+1;
-	int serv_buffer = atoi(serv_cntrl.substr(3, 4).c_str());
-	//Prepare data packets and send them
-	vector<string> data_pkts = data_packets(message, serv_buffer, header_len);
-	for(int i = 0; i < data_pkts.size(); i++){
-		string t = data_pkts[i];
-//t[5] = '2'; //Modify checksum to cause error
-//t[1] = '2'; //Modify packet number to cause error
-		const char *temp = t.c_str();
-		send(sock, temp, strlen(temp), 0);
-cout << "Data packet sent : " << t << endl;
-		//Busy waiting for server confirmation
-		while(true){
-			char buff[1024] = {0};
-			valread = read(sock, buff, 1024);
-			if(string(buff) == "cnfm"){
-				break;
-			}
-			if(string(buff) == "s/a"){
-t = data_pkts[i];//Correct packet
-temp = t.c_str();//
-				send(sock, temp, strlen(temp),0);
-cout << "Resent packet : " << temp << endl;
-			}
-		}
+	string in = message_to_be_sent("text.txt");
+	int len = in.length();
+	int j = 0;
+cout << "Message to be sent: " << in << endl;//Full message
+int sz;
+cout << "Enter client data transfer size: " ; 
+cin >> sz;
+int ky;
+cout << "Enter encryption key for msg: ";
+cin >> ky;
+
+	//Start communication
+	string step;
+	while(cin.get() == '\n'){
+		handshake(sock, in, sz, 0, ky);
 	}
 
-	// send(sock , hello , strlen(hello) , 0 ); 
-	// printf("Hello message sent\n"); 
-	// valread = read( sock , buffer, 1024); 
-	// printf("%s\n",buffer ); 
 	return 0; 
 } 

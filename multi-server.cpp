@@ -105,10 +105,9 @@ int main(int argc , char *argv[])
 	puts("Waiting for connections ..."); 
 		
 	string msg;//Full message from client, for memory simulation cap at 10
-	string dsk;
-	int file_p = 0;
 	int msg_sz = 0;
 	int srt_bt = 0;
+	int ky;
 	vector<int> errlog;
 	errlog.reserve(max_clients);
 	errlog = {0};
@@ -218,12 +217,10 @@ cout << "CLIENT CNTRL :" << incoming_message << endl;
 					
 					if(incoming_message[0] == '0'){
 						msg_sz = data_num(incoming_message);
+						ky = chk_num(incoming_message);
 						if(srt_bt >= msg_sz && srt_bt > 0){
 							cout << "FULL: " << endl;
-							cout << dsk << msg << endl;
-							cout << "DISK: " << dsk << endl;
-							cout << "MEM: " << msg << endl;
-							cout << "File Pointer: " << file_p << endl;
+							cout <<  msg << endl;
 							return 0;
 						}
 						int clt_buff = chk_num(incoming_message);
@@ -240,9 +237,8 @@ cout << "CLIENT DATA: " << incoming_message << endl;
 							}
 						}
 						else{
-							string data = data_msg(incoming_message, 7);
+							string data = decryption(data_msg(incoming_message, 7), ky);
 cout << "client sent: " << data << endl;
-							store_disk(msg, dsk, file_p, 10);
 							msg.append(data);
 							srt_bt += data.length();
 						}

@@ -15,6 +15,23 @@
 
 using namespace std;
 
+string decryption (string str, int key)
+{
+        for(int i = 0; i < str.length(); i++){
+			str[i] = char(int(str[i]) - key);
+		}
+		return str;
+}
+
+string encryption (string str, int key)
+{
+        for(int i = 0; i < str.length(); i++){
+			str[i] = char(int(str[i]) + key);
+		}
+		cout << "encrypted msg chunk: " << str << endl;
+		return str;
+}
+
 void send_msg(int skt, string msg){
 	const char * m = msg.c_str();
 	send(skt, m, strlen(m), 0);
@@ -70,8 +87,8 @@ string timed_listen(int sck){
         return msg;
 }
 
-string clt_data_pkt(string f_msg, int limit, int start_byte){
-	string data = f_msg.substr(start_byte, limit);
+string clt_data_pkt(string f_msg, int limit, int start_byte, int key){
+	string data = encryption(f_msg.substr(start_byte, limit), key);
 	string pkt = "1";//Data indicator
 	string strt = zero_pad(start_byte, 2);//Start byte
 	string chk = check_sum(data);
@@ -121,10 +138,20 @@ bool check_pkt(string msg, int crnt, int hdrlen){
 	}
 }
 
-void store_disk(string & msg, string & disk, int & fp, int mem){
-	if(msg.length() >= mem){
-		fp += msg.length();
-		disk = disk.append(msg);
-		msg = "";
-	}
+string encrypt_j(int num, int key){
+	stringstream val;
+	num = pow(num, key);
+	val << std::hex << num;
+	string temp;
+	val >> temp;
+	return temp;//zero_pad(num, 2);
 }
+
+double decrypt_j(string message, int key){
+	int num = stoi(message, nullptr, 16);
+	cout << "INT TO HEX: " << num << endl;
+	double num2 = double(1)/double(key);
+	cout << num2 << endl;
+	return(pow(num, num2));
+}
+
