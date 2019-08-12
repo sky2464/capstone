@@ -209,7 +209,7 @@ int main(int argc , char *argv[])
 					client_socket[i] = 0; 
 				} 
 					
-				//Echo back the message that came in 
+				//Handshake with active client 
 				else
 				{ 
 					string incoming_message = string(buffer2);
@@ -218,6 +218,7 @@ cout << "CLIENT CNTRL :" << incoming_message << endl;
 					if(incoming_message[0] == '0'){
 						msg_sz = data_num(incoming_message);
 						ky = chk_num(incoming_message);
+						//Full message has been sent
 						if(srt_bt >= msg_sz && srt_bt > 0){
 							cout << "FULL: " << endl;
 							cout <<  msg << endl;
@@ -230,13 +231,14 @@ cout << "requesting byte : " << srt_bt << endl;
 						send_msg(sd, serv_cntrl);//Send server data request
 						incoming_message = timed_listen(sd);//Listen for data packet
 cout << "CLIENT DATA: " << incoming_message << endl;
+						//Error check
 						if(!check_pkt(incoming_message, srt_bt, 7) || incoming_message[0] == '0'){
 							errlog[i] += 1;
 							if(errlog[i] > 2){//If more than two errors occur on a client, remove it
 								FD_CLR(sd, &readfds);
 							}
 						}
-						else{
+						else{//Receive data
 							string data = decryption(data_msg(incoming_message, 7), ky);
 cout << "client sent: " << data << endl;
 							msg.append(data);
